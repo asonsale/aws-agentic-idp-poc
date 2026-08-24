@@ -1,0 +1,8 @@
+encryptionsalt: v1:W/7WLSrrAFU=:v1:T6pqrYebmGTVADqo:nXIay6HTAPZvK5A25ud/68O9PVT/Rw==
+config:
+  aws:region: ap-southeast-2
+  ai-idp-poc:my_ip: 103.31.41.41/32
+  ai-idp-poc:db_master_password:
+    secure: v1:luB6Td7C6DyvDulI:AxEJeRONb9uZqb5E3orHcT46DnNNDQ2IeBiN1w==
+  ai-idp-poc:app_db_password:
+    secure: v1:wQ2XntyPV4ZZU2tH:YvgEGVuFk9CLWeoadLpsjhMds3DbKpuXAjnctA==

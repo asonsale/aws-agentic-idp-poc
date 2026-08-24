@@ -1,0 +1,66 @@
+version: "3.9"
+
+# Single-host POC stack. Replaces the original EKS deployment: no HPA,
+# no NetworkPolicy, no ALB -- all fine to add back later once the
+# architecture is validated and needs to scale past one demo user.
+# See README for how this maps back to the original tier-wise design.
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 5
+
+  presidio-analyzer:
+    image: mcr.microsoft.com/presidio-analyzer:latest
+    ports:
+      - "5001:3000"
+
+  mcp-server:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.mcp
+    env_file: .env
+    ports:
+      - "8001:8001"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  gateway:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.gateway
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      presidio-analyzer:
+        condition: service_started
+      mcp-server:
+        condition: service_started
+
+  worker:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.worker
+    env_file: .env
+    depends_on:
+      - gateway
+    restart: unless-stopped
+
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile.ui
+    env_file: .env
+    ports:
+      - "8501:8501"
+    depends_on:
+      - gateway

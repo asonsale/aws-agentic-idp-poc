@@ -1,0 +1,7 @@
+Title: Overlapping PII Entity Spans Corrupt Masked Prompt in mask_pii()
+
+Description: Presidio's analyzer returns multiple overlapping entity matches for the same substring — e.g. an email address (priya.sharma@example.com) gets matched by both its EMAIL_ADDRESS recognizer (full span) and its URL recognizer (the domain portion). The original mask_pii() in main.py replaced every returned entity independently, back-to-front by offset, with no logic to detect or resolve overlaps. When two spans overlapped, a later replacement sliced into text an earlier replacement had already inserted, corrupting the masked prompt (e.g. "My name is <PERSON_1> and my email is <URL_2>DDRESS_1>ease tell me the balance..." — a fragment of one mask token leaking mid-sentence, with words swallowed). This sent nonsensical text to Bedrock, causing confused or incorrect model responses instead of accurate ones.
+
+Fix: Added a _resolve_overlaps() step before masking — cluster entities by overlapping span, and within each cluster keep only the single best candidate (highest Presidio confidence score, longest span as tiebreaker), discarding the rest before the existing replacement logic runs.
+
+Verification: Simulated locally first, then rebuilt/redeployed the gateway image via pulumi up, restarted the pod, and re-ran the exact prompt that previously broke. Confirmed via live kubectl logs that masked_prompt now reads cleanly, and confirmed the same clean behavior through the Streamlit UI.

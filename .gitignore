@@ -1,0 +1,44 @@
+# --- Secrets / credentials -- NEVER commit these ---
+.env
+.env.*
+!.env.example
+kubeconfig.yaml
+*.pem
+*.key
+
+# --- Pulumi ---
+infra-pulumi/venv/
+infra-pulumi/**/__pycache__/
+# Pulumi.*.yaml can contain config values (not secrets -- those are
+# encrypted -- but region/IP/account-shaped info). Safe to commit, but
+# excluding the passphrase-derived local state backup just in case:
+infra-pulumi/.pulumi/
+
+# --- Logs from debugging sessions (may contain AWS account IDs, endpoints) ---
+*.log
+up-full.log
+up-fix.log
+preview-full.log
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+venv/
+.venv/
+
+# --- Docker ---
+.dockerignore
+
+# --- Editor / OS cruft ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Terraform/Pulumi state (if ever exported locally) ---
+*.tfstate
+*.tfstate.backup
+Pulumi.dev.yaml.bak

@@ -1,0 +1,5 @@
+pulumi>=3.100.0
+pulumi-aws>=6.0.0
+pulumi-awsx>=2.0.0
+pulumi-eks>=2.0.0
+pulumi-kubernetes>=4.0.0
