@@ -5,3 +5,39 @@ Description: Presidio's analyzer returns multiple overlapping entity matches for
 Fix: Added a _resolve_overlaps() step before masking — cluster entities by overlapping span, and within each cluster keep only the single best candidate (highest Presidio confidence score, longest span as tiebreaker), discarding the rest before the existing replacement logic runs.
 
 Verification: Simulated locally first, then rebuilt/redeployed the gateway image via pulumi up, restarted the pod, and re-ran the exact prompt that previously broke. Confirmed via live kubectl logs that masked_prompt now reads cleanly, and confirmed the same clean behavior through the Streamlit UI.
+
+
+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
+
+AWS EC2
+Amazon openserach serverless 
+Microsoft presidio-analyzer
+AWS RDS
+Lang graph
+
+
+performance
+
+
+enter complex data observe weired behaviour 
+1.normal flow
+2.major data insert flow
+3.failure service
+
+use case
+1.confluence data large and handle indexing
+2.service crashing
+3.caching handle
+4.performance
+5.scalability
+
+
+
+
+
+complex database
+
+
+
+
+

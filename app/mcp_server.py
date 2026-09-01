@@ -1,5 +1,6 @@
 import os
 import logging
+from decimal import Decimal
 
 import redis
 from mcp.server.fastmcp import FastMCP
@@ -65,8 +66,27 @@ def check_and_record_wire_transfer(account_id: str, tenant_id: str, transfer_amo
     """
     conn = None
     try:
+        # FIX: max_daily_wire_limit and daily_transferred_today are Postgres
+        # NUMERIC columns, which psycopg2 returns as Python Decimal objects.
+        # transfer_amount arrives as a plain float from the tool-call
+        # arguments (JSON has no Decimal type). Python refuses to add a
+        # Decimal and a float directly, so every transfer -- approved or
+        # rejected -- crashed with "unsupported operand type(s) for +:
+        # 'decimal.Decimal' and 'float'" the moment the comparison below
+        # ran. Casting once up front makes the whole function type-consistent.
+        transfer_amount = Decimal(str(transfer_amount))
+
         conn = get_db_connection()
-        conn.autocommit = False
+        # FIX: psycopg2 connections default to autocommit=False already, and
+        # get_db_connection()'s call to register_vector() runs a query to
+        # look up the vector type OID, which implicitly opens a transaction
+        # on this connection. Re-setting conn.autocommit here -- even to the
+        # same value -- calls psycopg2's set_session() internally, which
+        # raises "set_session cannot be used inside a transaction" once a
+        # transaction is already open. This line was both redundant (the
+        # connection was never in autocommit mode to begin with) and the
+        # actual cause of every wire-transfer tool call failing with a
+        # DATABASE ERROR.
         cursor = conn.cursor()
         cursor.execute("SET LOCAL app.current_tenant = %s;", (tenant_id,))
         cursor.execute(

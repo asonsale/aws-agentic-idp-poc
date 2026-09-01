@@ -1,0 +1,21 @@
+Risk Department Wire Transfer Policy
+
+Scope: This policy applies to all wire transfer requests originated by accounts under the Risk Department tenant (risk_dept_01).
+
+Daily Transfer Limits
+Risk Department accounts are capped at $50,000 per day in total outbound wire transfers. Any single transfer or cumulative daily total that would exceed $50,000 requires Risk Committee sign-off before execution.
+
+Risk Categorization Thresholds
+Accounts are classified into one of three risk categories based on transaction history and balance profile:
+- LOW_RISK: Account has a clean transaction history, balance under $100,000, and no flagged activity in the past 12 months.
+- MEDIUM_RISK: Account has moderate transaction volume or a balance between $100,000 and $500,000.
+- HIGH_RISK: Account has flagged activity, unusually large or frequent transfers, or a balance exceeding $500,000.
+
+Approval Workflow
+1. Any wire transfer request is first checked against the account's remaining daily limit.
+2. If the requested amount plus the amount already transferred today exceeds the $50,000 daily cap, the transfer is automatically declined and logged for Risk Committee review.
+3. If the transfer is within the daily cap, it is recorded atomically against the account's running daily total to prevent double-spending under concurrent requests.
+4. HIGH_RISK accounts require a secondary manual review regardless of transfer amount.
+
+Escalation Contacts
+Transfers requiring Risk Committee sign-off should be escalated to the on-call risk officer within one business day of the decline.

@@ -1,0 +1,21 @@
+Finance Department Wire Transfer Policy
+
+Scope: This policy applies to all wire transfer requests originated by accounts under the Finance Department tenant (finance_dept_01).
+
+Daily Transfer Limits
+Finance Department accounts are capped at $150,000 per day in total outbound wire transfers, reflecting the department's higher transaction volume for vendor payments and payroll processing. Any single transfer or cumulative daily total that would exceed $150,000 requires CFO sign-off before execution.
+
+Risk Categorization Thresholds
+Finance Department accounts use the same three-tier classification as other departments:
+- LOW_RISK: balance under $200,000, no flagged activity in the past 12 months.
+- MEDIUM_RISK: balance between $200,000 and $750,000, or moderate transaction volume tied to recurring vendor payments.
+- HIGH_RISK: balance exceeding $750,000, or irregular payment patterns outside the standard payroll and vendor cycle.
+
+Approval Workflow
+1. Every wire transfer request is checked against the account's remaining daily limit before execution.
+2. If the requested amount plus the amount already transferred today would exceed the $150,000 daily cap, the transfer is automatically declined and routed to CFO review.
+3. Approved transfers are recorded atomically against the account's running daily total, preventing two concurrent requests from both passing the limit check.
+4. Recurring vendor payments under $10,000 are exempt from secondary review but still count toward the daily cap.
+
+Escalation Contacts
+Transfers requiring CFO sign-off should be escalated to the Finance Controller within one business day of the decline.

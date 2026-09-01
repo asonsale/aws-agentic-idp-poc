@@ -149,7 +149,25 @@ def tier2_retrieval(state: AgentState) -> dict:
     return {"retrieved_context": context}
 
 
-async def tier2_mcp(state: AgentState) -> dict:
+async def tier3_agent(state: AgentState) -> dict:
+    """
+    FIX: the original tier2_mcp always called query_customer_risk_multitenant
+    with a hardcoded account_id="ACC-9021", regardless of what the user
+    actually asked. check_and_record_wire_transfer and check_erp_server_status
+    were defined on the MCP server but never reachable -- every query silently
+    got the same customer-risk lookup whether it was relevant or not.
+
+    This replaces that with real tool selection: we fetch the MCP server's
+    actual tool list (list_tools()), hand their schemas to Bedrock via the
+    Anthropic tools parameter, and let the model decide whether to call a
+    tool, which one, and with what arguments -- extracted from the user's
+    own masked prompt rather than assumed. Bounded to a small number of
+    tool-use rounds so a misbehaving model can't loop forever.
+    """
+    sys_prompt = f"Context: {state['retrieved_context']}."
+    messages = [{"role": "user", "content": state["masked_prompt"]}]
+    tool_calls_made = []
+
     try:
         from mcp import ClientSession
         from mcp.client.sse import sse_client
@@ -157,40 +175,72 @@ async def tier2_mcp(state: AgentState) -> dict:
         async with sse_client(MCP_SERVER_URL) as (read_stream, write_stream):
             async with ClientSession(read_stream, write_stream) as session:
                 await session.initialize()
-                res = await session.call_tool(
-                    "query_customer_risk_multitenant",
-                    arguments={"account_id": "ACC-9021", "tenant_id": state["tenant_id"]},
-                )
-                return {"mcp_tool_output": res.content[0].text}
+
+                mcp_tools = await session.list_tools()
+                bedrock_tools = [
+                    {
+                        "name": t.name,
+                        "description": t.description or "",
+                        "input_schema": t.inputSchema,
+                    }
+                    for t in mcp_tools.tools
+                ]
+
+                # Also give the model the tenant_id up front so it doesn't
+                # have to guess it -- it's session context, not something
+                # the user typed, so it shouldn't come from the prompt.
+                sys_prompt += f" The current tenant_id for any tool call is '{state['tenant_id']}'."
+
+                final_text = ""
+                for _ in range(3):  # bound the agentic loop
+                    payload = {
+                        "anthropic_version": "bedrock-2023-05-31",
+                        "max_tokens": 1000,
+                        "system": sys_prompt,
+                        "messages": messages,
+                        "tools": bedrock_tools,
+                    }
+                    response = bedrock_runtime.invoke_model(modelId=MODEL_ID, body=json.dumps(payload))
+                    body = json.loads(response["body"].read())
+                    messages.append({"role": "assistant", "content": body["content"]})
+
+                    tool_use_blocks = [b for b in body["content"] if b["type"] == "tool_use"]
+                    if not tool_use_blocks:
+                        final_text = "".join(b["text"] for b in body["content"] if b["type"] == "text")
+                        break
+
+                    tool_results = []
+                    for block in tool_use_blocks:
+                        try:
+                            result = await session.call_tool(block["name"], arguments=block["input"])
+                            output_text = result.content[0].text
+                        except Exception as e:
+                            output_text = f"TOOL_ERROR: {e}"
+                        tool_calls_made.append({"tool": block["name"], "args": block["input"], "result": output_text})
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block["id"],
+                            "content": output_text,
+                        })
+                    messages.append({"role": "user", "content": tool_results})
+                else:
+                    final_text = "Reached the tool-call limit without a final answer."
     except Exception as e:
-        logger.error(f"MCP call failed: {e}")
-        return {"mcp_tool_output": "MCP_UNAVAILABLE"}
+        logger.error(f"Agent step failed: {e}")
+        final_text = "I wasn't able to reach backend services to answer this right now."
 
-
-def tier3_inference(state: AgentState) -> dict:
-    sys_prompt = f"Context: {state['retrieved_context']}. DB Data: {state['mcp_tool_output']}"
-    payload = {
-        "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 1000,
-        "system": sys_prompt,
-        "messages": [{"role": "user", "content": state["masked_prompt"]}],
-    }
-    response = bedrock_runtime.invoke_model(modelId=MODEL_ID, body=json.dumps(payload))
-    raw_out = json.loads(response["body"].read())["content"][0]["text"]
-    final = rehydrate(raw_out, state["pii_token_map"])
-    return {"final_output": final}
+    final = rehydrate(final_text, state["pii_token_map"])
+    return {"final_output": final, "mcp_tool_output": json.dumps(tool_calls_made)}
 
 
 builder = StateGraph(AgentState)
 builder.add_node("redaction", tier1_redaction)
 builder.add_node("retrieval", tier2_retrieval)
-builder.add_node("mcp", tier2_mcp)
-builder.add_node("inference", tier3_inference)
+builder.add_node("agent", tier3_agent)
 builder.add_edge(START, "redaction")
 builder.add_edge("redaction", "retrieval")
-builder.add_edge("retrieval", "mcp")
-builder.add_edge("mcp", "inference")
-builder.add_edge("inference", END)
+builder.add_edge("retrieval", "agent")
+builder.add_edge("agent", END)
 pipeline = builder.compile()
 
 
@@ -221,6 +271,7 @@ async def execute_agent_query(payload: QueryRequest):
         # masked_prompt/retrieved_context are already PII-scrubbed.
         "masked_prompt": result["masked_prompt"],
         "retrieved_context": result["retrieved_context"],
+        "tool_calls": result.get("mcp_tool_output", "[]"),
         "response": result["final_output"],
     }))
 
